@@ -10,7 +10,12 @@ import streamlit.components.v1 as components
 
 from services.editor_service import EditorState
 from services.session_bridge import has_analysis_data
-from services.text_hwpx_builder import build_docx_from_text, build_hwpx_from_text
+from services.text_hwpx_builder import (
+    build_docx_from_text,
+    build_hwpx_from_text,
+    build_research_note_docx,
+    build_research_note_hwpx,
+)
 
 
 def _get_editor() -> EditorState:
@@ -31,7 +36,46 @@ def _source_summary() -> str:
     )
 
 
+_RN_FIELD_KEYS = (
+    "rn_topic",
+    "rn_owner",
+    "rn_author",
+    "rn_content",
+    "rn_results",
+    "rn_etc",
+    "rn_date",
+)
+
+
+def _rn_persist_store() -> dict:
+    return st.session_state.setdefault("da_rn_persist", {})
+
+
+def _save_rn_fields_to_persist():
+    """위젯이 언마운트되어도 값이 남도록 별도 저장."""
+    store = _rn_persist_store()
+    for k in _RN_FIELD_KEYS:
+        if k in st.session_state:
+            store[k] = st.session_state[k]
+    if "da_rn_converted" in st.session_state:
+        store["da_rn_converted"] = st.session_state["da_rn_converted"]
+
+
+def _restore_rn_fields_from_persist():
+    store = st.session_state.get("da_rn_persist") or {}
+    for k in _RN_FIELD_KEYS:
+        if k in store and k not in st.session_state:
+            st.session_state[k] = store[k]
+    if "da_rn_converted" in store and "da_rn_converted" not in st.session_state:
+        st.session_state["da_rn_converted"] = store["da_rn_converted"]
+
+
+def _on_rn_field_change():
+    _save_rn_fields_to_persist()
+
+
 def _init_research_note_fields():
+    _restore_rn_fields_from_persist()
     defaults = {
         "rn_topic": "",
         "rn_owner": "",
@@ -45,6 +89,7 @@ def _init_research_note_fields():
             st.session_state[k] = v
     if "rn_date" not in st.session_state:
         st.session_state.rn_date = date.today()
+    _save_rn_fields_to_persist()
 
 
 def _apply_pending_convert():
@@ -53,6 +98,21 @@ def _apply_pending_convert():
     if pending is not None:
         st.session_state["rn_content"] = pending
         st.session_state["da_rn_converted"] = True
+        _save_rn_fields_to_persist()
+
+
+def _research_note_rows() -> list[tuple[str, str]]:
+    d = st.session_state.get("rn_date")
+    date_s = d.isoformat() if hasattr(d, "isoformat") else str(d or "")
+    return [
+        ("주 제", st.session_state.get("rn_topic") or ""),
+        ("책 임 자", st.session_state.get("rn_owner") or ""),
+        ("일 시", date_s),
+        ("작 성 자", st.session_state.get("rn_author") or ""),
+        ("내 용", st.session_state.get("rn_content") or ""),
+        ("연구결과", st.session_state.get("rn_results") or ""),
+        ("기타내용", st.session_state.get("rn_etc") or ""),
+    ]
 
 
 def _research_note_plain() -> str:
@@ -79,17 +139,7 @@ def _research_note_plain() -> str:
 
 
 def _research_note_preview_html() -> str:
-    d = st.session_state.get("rn_date")
-    date_s = d.isoformat() if hasattr(d, "isoformat") else str(d or "")
-    rows = [
-        ("주 제", st.session_state.get("rn_topic") or ""),
-        ("책 임 자", st.session_state.get("rn_owner") or ""),
-        ("일 시", date_s),
-        ("작 성 자", st.session_state.get("rn_author") or ""),
-        ("내 용", st.session_state.get("rn_content") or ""),
-        ("연구결과", st.session_state.get("rn_results") or ""),
-        ("기타내용", st.session_state.get("rn_etc") or ""),
-    ]
+    rows = _research_note_rows()
     tall = {"내 용", "연구결과", "기타내용"}
     body = []
     for label, val in rows:
@@ -126,8 +176,19 @@ def _ensure_built(text: str) -> tuple[bytes, bytes]:
 
 def render_writer_tab():
     st.header("연구노트 작성 및 문서 생성")
+    _init_research_note_fields()
+    _apply_pending_convert()
+
     summary = _source_summary()
-    if not ((st.session_state.get("da_summary_ready") or has_analysis_data(st.session_state)) and summary):
+    has_source = bool(
+        (st.session_state.get("da_summary_ready") or has_analysis_data(st.session_state)) and summary
+    )
+    has_draft = any(
+        str((_rn_persist_store().get(k) or "")).strip()
+        for k in ("rn_topic", "rn_owner", "rn_author", "rn_content", "rn_results", "rn_etc")
+    ) or bool(_rn_persist_store().get("da_rn_converted"))
+
+    if not has_source and not has_draft:
         st.info(
             "1. **문서 분석 및 요약** 탭에서 문서 업로드\n"
             "2. 요약 생성 후 **「작성 탭으로 가져오기」**\n"
@@ -135,14 +196,17 @@ def render_writer_tab():
         )
         return
 
-    _init_research_note_fields()
-    _apply_pending_convert()
-
-    src_hash = hash(summary)
-    if st.session_state.get("da_writer_source_hash") != src_hash:
-        st.session_state.da_writer_source_hash = src_hash
-        st.session_state.da_writer_text = summary
-        st.session_state.da_writer_last_built_text = None
+    if has_source:
+        src_hash = hash(summary)
+        if st.session_state.get("da_writer_source_hash") != src_hash:
+            st.session_state.da_writer_source_hash = src_hash
+            # 사용자가 이미 편집 중이면 덮어쓰지 않음
+            if not st.session_state.get("da_writer_text"):
+                st.session_state.da_writer_text = summary
+            elif st.session_state.get("da_writer_text") == st.session_state.get("da_writer_prev_summary"):
+                st.session_state.da_writer_text = summary
+            st.session_state.da_writer_prev_summary = summary
+            st.session_state.da_writer_last_built_text = None
 
     files = st.session_state.get("uploaded_file_names") or []
     if files:
@@ -153,6 +217,8 @@ def render_writer_tab():
     # ----- 왼쪽: 요약 편집 + 미리보기 -----
     with left:
         st.subheader("요약문")
+        if "da_writer_text" not in st.session_state and summary:
+            st.session_state.da_writer_text = summary
         edited = st.text_area(
             "요약문 직접 편집",
             key="da_writer_text",
@@ -196,13 +262,14 @@ def render_writer_tab():
     # ----- 오른쪽: 연구노트 폼 + 템플릿 미리보기 -----
     with right:
         st.subheader("연구노트")
-        st.text_input("주제", key="rn_topic")
-        st.text_input("책임자", key="rn_owner")
-        st.date_input("일시", key="rn_date")
-        st.text_input("작성자", key="rn_author")
-        st.text_area("내용", key="rn_content", height=160)
-        st.text_area("연구결과", key="rn_results", height=100)
-        st.text_area("기타내용", key="rn_etc", height=80)
+        st.text_input("주제", key="rn_topic", on_change=_on_rn_field_change)
+        st.text_input("책임자", key="rn_owner", on_change=_on_rn_field_change)
+        st.date_input("일시", key="rn_date", on_change=_on_rn_field_change)
+        st.text_input("작성자", key="rn_author", on_change=_on_rn_field_change)
+        st.text_area("내용", key="rn_content", height=160, on_change=_on_rn_field_change)
+        st.text_area("연구결과", key="rn_results", height=100, on_change=_on_rn_field_change)
+        st.text_area("기타내용", key="rn_etc", height=80, on_change=_on_rn_field_change)
+        _save_rn_fields_to_persist()
 
         st.markdown("**연구노트 미리보기**")
         components.html(_research_note_preview_html(), height=420, scrolling=True)
@@ -210,15 +277,16 @@ def render_writer_tab():
     st.markdown("---")
     st.subheader("다운로드")
 
-    # 변환 후에는 연구노트 본문, 아니면 왼쪽 요약문
-    if st.session_state.get("da_rn_converted"):
-        export_text = _research_note_plain()
-    else:
-        export_text = st.session_state.get("da_writer_text") or ""
-
+    # 연구노트 변환 후에는 미리보기와 같은 표 형식으로 저장
     try:
-        hwpx_bytes = build_hwpx_from_text(export_text)
-        docx_bytes = build_docx_from_text(export_text)
+        if st.session_state.get("da_rn_converted"):
+            rows = _research_note_rows()
+            hwpx_bytes = build_research_note_hwpx(rows)
+            docx_bytes = build_research_note_docx(rows)
+        else:
+            export_text = st.session_state.get("da_writer_text") or ""
+            hwpx_bytes = build_hwpx_from_text(export_text)
+            docx_bytes = build_docx_from_text(export_text)
     except Exception as e:
         st.error(f"다운로드 파일 생성 실패: {e}")
         return
@@ -243,3 +311,5 @@ def render_writer_tab():
             use_container_width=True,
             key="da_dl_docx",
         )
+    if not st.session_state.get("da_rn_converted"):
+        st.caption("연구노트 표 형식으로 받으려면 먼저 「연구노트로 변환」을 눌러 주세요.")
