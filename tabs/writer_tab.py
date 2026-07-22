@@ -108,7 +108,7 @@ def render_writer_tab():
         )
     with c2:
         st.download_button(
-            "DOCX로 다운로드 (한글에서 열림)",
+            "DOCX로 다운로드",
             data=docx_bytes,
             file_name="research_note.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
