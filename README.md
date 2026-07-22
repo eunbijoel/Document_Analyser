@@ -14,7 +14,7 @@ PORT=8503 ./run_app.sh
 ### 사전 조건
 
 - Python 3.10+
-- `pip install -r requirements.txt` (`python-hwpx` 포함)
+- `pip install -r requirements.txt` (`python-hwpx`, `hwpkit` 포함)
 - HWP analysis repo: `/home/eunbi/HWP analysis` (또는 `HWP_ANALYSIS_ROOT`)
 - (선택) Ollama — LLM 요약·Q&A
 
@@ -23,7 +23,7 @@ PORT=8503 ./run_app.sh
 | 탭 | 기능 |
 |----|------|
 | **문서 분석 및 요약** | Product A Q&A + 다형식 업로드(HWP/HWPX/PDF/TXT/PY/XLSX/XLS/CSV), 요약 → 작성 탭 전달 |
-| **연구노트 작성 및 문서 생성** | 요약문 직접 편집·미리보기, HWPX/DOCX 다운로드 (한글에서 열림) |
+| **연구노트 작성 및 문서 생성** | 요약문 편집·연구노트 표 미리보기, HWPX/HWP/DOCX 다운로드 (한글에서 열림) |
 
 탭 간 데이터는 `st.session_state` (`da_summary_text`, `analysis_summary` 등).
 
@@ -32,10 +32,9 @@ PORT=8503 ./run_app.sh
 ```
 Document_Analyser/
 ├── app.py
-├── tabs/intelligence_tab.py, writer_tab.py
-├── services/document_parser.py, text_hwpx_builder.py, editor_service.py, …
-├── templates/
+├── tabs/intelligence_tab.py, analyzer_tab.py, writer_tab.py
+├── services/document_parser.py, text_hwpx_builder.py, summarizer.py, …
+├── templates/Note_Template.hwp
 ├── tests/
 └── run_app.sh
 ```
-
