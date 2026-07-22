@@ -8,7 +8,6 @@ from html import escape
 import streamlit as st
 import streamlit.components.v1 as components
 
-from services.editor_service import EditorState
 from services.session_bridge import has_analysis_data
 from services.text_hwpx_builder import (
     build_docx_from_text,
@@ -16,15 +15,6 @@ from services.text_hwpx_builder import (
     build_research_note_docx,
     build_research_note_hwpx,
 )
-
-
-def _get_editor() -> EditorState:
-    if "da_writer_editor" not in st.session_state:
-        st.session_state.da_writer_editor = EditorState()
-    ed: EditorState = st.session_state.da_writer_editor
-    ed.ollama_url = st.session_state.get("da_ollama_url", ed.ollama_url)
-    ed.model = st.session_state.get("da_model", ed.model)
-    return ed
 
 
 def _source_summary() -> str:
@@ -115,29 +105,6 @@ def _research_note_rows() -> list[tuple[str, str]]:
     ]
 
 
-def _research_note_plain() -> str:
-    d = st.session_state.get("rn_date")
-    date_s = d.isoformat() if hasattr(d, "isoformat") else str(d or "")
-    parts = [
-        "연구노트",
-        "",
-        f"주제: {st.session_state.get('rn_topic') or ''}",
-        f"책임자: {st.session_state.get('rn_owner') or ''}",
-        f"일시: {date_s}",
-        f"작성자: {st.session_state.get('rn_author') or ''}",
-        "",
-        "내용",
-        st.session_state.get("rn_content") or "",
-        "",
-        "연구결과",
-        st.session_state.get("rn_results") or "",
-        "",
-        "기타내용",
-        st.session_state.get("rn_etc") or "",
-    ]
-    return "\n".join(parts)
-
-
 def _research_note_preview_html() -> str:
     rows = _research_note_rows()
     tall = {"내 용", "연구결과", "기타내용"}
@@ -160,18 +127,6 @@ def _research_note_preview_html() -> str:
   </table>
 </div>
 """
-
-
-def _ensure_built(text: str) -> tuple[bytes, bytes]:
-    key = "da_writer_last_built_text"
-    if text != st.session_state.get(key):
-        st.session_state.da_writer_hwpx = build_hwpx_from_text(text)
-        st.session_state.da_writer_docx = build_docx_from_text(text)
-        st.session_state[key] = text
-    return (
-        st.session_state.get("da_writer_hwpx") or b"",
-        st.session_state.get("da_writer_docx") or b"",
-    )
 
 
 def render_writer_tab():
@@ -214,39 +169,20 @@ def render_writer_tab():
 
     left, mid, right = st.columns([5, 1.2, 5], gap="medium")
 
-    # ----- 왼쪽: 요약 편집 + 미리보기 -----
+    # ----- 왼쪽: 요약 편집 + 연구노트 미리보기 -----
     with left:
         st.subheader("요약문")
         if "da_writer_text" not in st.session_state and summary:
             st.session_state.da_writer_text = summary
-        edited = st.text_area(
+        st.text_area(
             "요약문 직접 편집",
             key="da_writer_text",
             height=280,
             label_visibility="collapsed",
         )
-        try:
-            left_hwpx, _ = _ensure_built(edited)
-        except Exception as e:
-            st.error(f"미리보기 문서 생성 실패: {e}")
-            left_hwpx = b""
 
-        editor = _get_editor()
-        if left_hwpx and st.session_state.get("da_writer_loaded_hash") != hash(left_hwpx):
-            try:
-                editor.load_hwpx(left_hwpx, "summary_preview.hwpx")
-                st.session_state.da_writer_loaded_hash = hash(left_hwpx)
-            except Exception as e:
-                st.caption(f"미리보기 로드 제한: {e}")
-
-        st.markdown("**미리보기**")
-        try:
-            if editor.editor:
-                components.html(editor.preview_html(), height=360, scrolling=True)
-            else:
-                st.text(edited)
-        except Exception as e:
-            st.warning(f"미리보기 오류: {e}")
+        st.markdown("**연구노트 미리보기**")
+        components.html(_research_note_preview_html(), height=420, scrolling=True)
 
     # ----- 가운데: 변환 버튼 -----
     with mid:
@@ -259,7 +195,7 @@ def render_writer_tab():
         if st.session_state.get("da_rn_converted"):
             st.caption("변환됨 →")
 
-    # ----- 오른쪽: 연구노트 폼 + 템플릿 미리보기 -----
+    # ----- 오른쪽: 연구노트 폼 -----
     with right:
         st.subheader("연구노트")
         st.text_input("주제", key="rn_topic", on_change=_on_rn_field_change)
@@ -270,9 +206,6 @@ def render_writer_tab():
         st.text_area("연구결과", key="rn_results", height=100, on_change=_on_rn_field_change)
         st.text_area("기타내용", key="rn_etc", height=80, on_change=_on_rn_field_change)
         _save_rn_fields_to_persist()
-
-        st.markdown("**연구노트 미리보기**")
-        components.html(_research_note_preview_html(), height=420, scrolling=True)
 
     st.markdown("---")
     st.subheader("다운로드")
