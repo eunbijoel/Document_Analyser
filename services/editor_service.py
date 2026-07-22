@@ -39,12 +39,7 @@ class EditorState:
             return "<p>문서가 없습니다.</p>"
         from hwp_core.editing.preview_layer import build_preview_html
 
-        return build_preview_html(
-            self._editor,
-            filename=self.filename,
-            selected_cell=self.selected_cell,
-            selected_para=self.selected_para,
-        )
+        return build_preview_html(self._editor, filename=self.filename)
 
     def get_pending(self) -> list:
         if not self._editor:
