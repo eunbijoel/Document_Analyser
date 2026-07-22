@@ -39,20 +39,3 @@ Document_Analyser/
 └── run_app.sh
 ```
 
-## 구현 완료
-
-- Product A Intelligence UI 재사용 + 다형식 파싱
-- 짧은 요약 / 20줄 연구노트 요약 / Q&A → 작성 탭
-- 탭 2: 요약 편집 + 미리보기 + HWPX(`python-hwpx`) / DOCX 다운로드
-
-## 제한 사항
-
-- `.hwp` 바이너리 직접 생성은 한글 호환이 불안정 → DOCX 제공 후 한글에서 HWP로 저장 권장
-- B 전체 UX(클릭 선택·Completion Planner 등)는 Flask `HWP_v2/server.py` (:8765)
-
-## 테스트
-
-```bash
-cd /home/eunbi/Document_Analyser
-PYTHONPATH=.:/home/eunbi/HWP\ analysis pytest tests/ -q
-```
