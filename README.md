@@ -1,6 +1,6 @@
 # Document Analyser
 
-HWP**/Docs/txt/PY/PDF/Excel 등 다양한 형식의 문서 통합 분석·요약**과 **연구노트 생성** 및 저장.
+HWP/Docs/txt/PY/PDF/Excel 등 다양한 형식의 문서 통합 분석·요약**과 **연구노트 생성** 및 저장.
 
 ## 설치 및 실행
 
