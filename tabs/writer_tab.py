@@ -11,8 +11,10 @@ import streamlit.components.v1 as components
 from services.session_bridge import has_analysis_data
 from services.text_hwpx_builder import (
     build_docx_from_text,
+    build_hwp_from_text,
     build_hwpx_from_text,
     build_research_note_docx,
+    build_research_note_hwp,
     build_research_note_hwpx,
 )
 
@@ -211,20 +213,30 @@ def render_writer_tab():
     st.subheader("다운로드")
 
     # 연구노트 변환 후에는 미리보기와 같은 표 형식으로 저장
+    hwp_bytes: bytes | None = None
+    hwp_err = ""
     try:
         if st.session_state.get("da_rn_converted"):
             rows = _research_note_rows()
             hwpx_bytes = build_research_note_hwpx(rows)
             docx_bytes = build_research_note_docx(rows)
+            try:
+                hwp_bytes = build_research_note_hwp(rows)
+            except Exception as e:
+                hwp_err = str(e)
         else:
             export_text = st.session_state.get("da_writer_text") or ""
             hwpx_bytes = build_hwpx_from_text(export_text)
             docx_bytes = build_docx_from_text(export_text)
+            try:
+                hwp_bytes = build_hwp_from_text(export_text)
+            except Exception as e:
+                hwp_err = str(e)
     except Exception as e:
         st.error(f"다운로드 파일 생성 실패: {e}")
         return
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.download_button(
             "HWPX로 다운로드",
@@ -237,6 +249,16 @@ def render_writer_tab():
         )
     with c2:
         st.download_button(
+            "HWP로 다운로드",
+            data=hwp_bytes or b"",
+            file_name="research_note.hwp",
+            mime="application/octet-stream",
+            use_container_width=True,
+            key="da_dl_hwp",
+            disabled=not bool(hwp_bytes),
+        )
+    with c3:
+        st.download_button(
             "DOCX로 다운로드",
             data=docx_bytes,
             file_name="research_note.docx",
@@ -244,5 +266,7 @@ def render_writer_tab():
             use_container_width=True,
             key="da_dl_docx",
         )
+    if hwp_err and not hwp_bytes:
+        st.caption(f"HWP 생성 불가 — HWPX/DOCX는 사용 가능합니다. ({hwp_err[:180]})")
     if not st.session_state.get("da_rn_converted"):
         st.caption("연구노트 표 형식으로 받으려면 먼저 「연구노트로 변환」을 눌러 주세요.")

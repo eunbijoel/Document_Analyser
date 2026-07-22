@@ -12,3 +12,4 @@ pyyaml>=6.0
 pyhwp==0.1b15
 xlrd>=2.0.1
 python-hwpx>=4.1.1
+hwpkit>=1.0.0
