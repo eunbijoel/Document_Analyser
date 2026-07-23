@@ -40,10 +40,22 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 inject_theme()
-# brand 테마가 툴바를 숨기면서 사이드바 접기/펼치기 컨트롤도 안 보이는 경우 보정
+# brand CSS가 stToolbar 전체를 숨김 → 접힌 사이드바의 펼치기 버튼도 같이 사라짐
 st.markdown(
     """
 <style>
+/* Deploy/상태만 숨기고, 사이드바 펼치기 버튼이 있는 툴바는 유지 */
+[data-testid="stToolbar"] {
+  display: flex !important;
+  visibility: visible !important;
+  min-height: 2.5rem;
+}
+.stAppDeployButton,
+div[data-testid="stStatusWidget"],
+[data-testid="stToolbarActions"] {
+  display: none !important;
+}
+
 [data-testid="stSidebarCollapseButton"],
 [data-testid="stExpandSidebarButton"] {
   visibility: visible !important;
@@ -54,15 +66,16 @@ st.markdown(
 [data-testid="stSidebarCollapseButton"] button,
 [data-testid="stExpandSidebarButton"] {
   cursor: pointer !important;
+  min-width: 2rem !important;
+  min-height: 2rem !important;
 }
-/* 접힌 뒤 왼쪽 상단 펼치기 버튼이 가려지지 않게 */
 [data-testid="stHeader"] {
   z-index: 999991 !important;
 }
 [data-testid="stExpandSidebarButton"] {
   position: relative;
   z-index: 999992 !important;
-  margin: 0.35rem 0 0 0.35rem;
+  margin: 0.35rem 0 0 0.5rem !important;
 }
 </style>
 """,
