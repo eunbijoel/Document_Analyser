@@ -235,7 +235,39 @@ components.html(
     height=0,
 )
 
-st.title("Document Analyser")
+
+def _render_app_header():
+    """로고 + Document Analyser 제목. 제목 클릭 시 새로고침."""
+    import base64
+
+    logo_path = _DA / "templates" / "Doc_logo.png"
+    logo_html = ""
+    if logo_path.is_file():
+        b64 = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+        logo_html = (
+            f'<img src="data:image/png;base64,{b64}" alt="Document Analyser" '
+            f'style="height:4.4rem;width:4.4rem;object-fit:contain;border-radius:12px;" />'
+        )
+    st.markdown(
+        f"""
+<div class="da-app-header" style="display:flex;align-items:center;gap:0.75rem;margin:0.15rem 0 0.35rem;">
+  <a href="/" class="da-app-title"
+     onclick="window.parent.location.reload(); return false;"
+     style="display:inline-flex;align-items:center;gap:0.75rem;text-decoration:none;color:inherit;">
+    {logo_html}
+    <span style="font-size:2rem;font-weight:700;line-height:1.2;">Document Analyser</span>
+  </a>
+</div>
+<style>
+a.da-app-title:hover {{ opacity: 0.85; }}
+[data-testid="stApp"][data-da-theme="dark"] a.da-app-title {{ color: #fafafa !important; }}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+_render_app_header()
 st.caption("탭 1 = Product A · 탭 2 = 요약 → HWPX (단계별 구현)")
 
 with st.sidebar:
