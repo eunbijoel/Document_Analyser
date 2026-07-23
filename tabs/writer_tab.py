@@ -92,6 +92,16 @@ def _apply_pending_convert():
         st.session_state["da_rn_converted"] = True
         _save_rn_fields_to_persist()
 
+    # Tab 1 「연구노트 필드 초안」에서 넘어온 주제/내용/연구결과
+    fields = st.session_state.pop("da_pending_rn_fields", None)
+    if isinstance(fields, dict):
+        for key in ("rn_topic", "rn_content", "rn_results"):
+            val = fields.get(key)
+            if val is not None and str(val).strip():
+                st.session_state[key] = str(val).strip()
+        st.session_state["da_rn_converted"] = True
+        _save_rn_fields_to_persist()
+
 
 def _research_note_rows() -> list[tuple[str, str]]:
     d = st.session_state.get("rn_date")

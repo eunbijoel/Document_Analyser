@@ -8,8 +8,11 @@ from apps.intelligence.ui import get_last_assistant_answer, render_intelligence_
 from hwp_core.knowledge_mode import KnowledgeMode
 from services.session_bridge import save_analysis_to_writer
 from services.summarizer import (
+    RESEARCH_NOTE_FIELD_PROMPT,
     RESEARCH_NOTE_SECTIONS,
     extract_keywords,
+    format_research_note_fields,
+    parse_research_note_fields,
     suggest_title,
 )
 
@@ -164,7 +167,7 @@ def _render_summary_section(
             "작성 탭으로 전달했습니다. 「연구노트 작성 및 문서 생성」 탭을 열어 주세요."
         )
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("문서 요약 (짧게)", use_container_width=True, key="da_btn_short"):
             with st.spinner("전체 문서 요약 생성…"):
@@ -204,6 +207,33 @@ def _render_summary_section(
             if not text:
                 st.warning("요약이 비어 있습니다. Ollama 연결을 확인하세요.")
             st.rerun()
+    with col3:
+        if st.button(
+            "연구노트 필드 초안",
+            use_container_width=True,
+            key="da_btn_rn_fields",
+            help="주제 / 내용 / 연구결과를 연구노트 양식에 맞게 생성합니다.",
+        ):
+            with st.spinner("연구노트 필드(주제·내용·연구결과) 생성…"):
+                text = _run_qa_summary(
+                    documents,
+                    _all_files_question(documents, RESEARCH_NOTE_FIELD_PROMPT.strip()),
+                    model=model,
+                    ollama_url=ollama_url,
+                    use_llm=use_llm,
+                )
+            fields = parse_research_note_fields(text)
+            formatted = format_research_note_fields(fields)
+            st.session_state.da_pending_research_summary = formatted
+            # Tab 2 폼에 바로 넣을 초안
+            st.session_state.da_pending_rn_fields = {
+                "rn_topic": fields.get("topic") or "",
+                "rn_content": fields.get("content") or "",
+                "rn_results": fields.get("results") or "",
+            }
+            if not text.strip():
+                st.warning("생성이 비어 있습니다. Ollama 연결을 확인하세요.")
+            st.rerun()
 
     if st.session_state.get("da_short_summary"):
         with st.expander("짧은 요약", expanded=True):
@@ -214,7 +244,7 @@ def _render_summary_section(
         "수정 가능",
         height=320,
         key="da_research_summary_edit",
-        placeholder="「연구노트용 통합 요약」 버튼으로 생성하거나 직접 입력하세요.",
+        placeholder="「연구노트용 통합 요약」 또는 「연구노트 필드 초안」으로 생성하거나 직접 입력하세요.",
         label_visibility="collapsed",
     )
 
@@ -236,6 +266,14 @@ def _render_summary_section(
                 )
                 st.session_state.da_summary_text = edited.strip()
                 st.session_state.da_summary_ready = True
+                # 주제/내용/연구결과 형식이면 Tab 2 폼에도 반영
+                parsed = parse_research_note_fields(edited)
+                if parsed.get("topic") or parsed.get("content") or parsed.get("results"):
+                    st.session_state.da_pending_rn_fields = {
+                        "rn_topic": parsed.get("topic") or "",
+                        "rn_content": parsed.get("content") or "",
+                        "rn_results": parsed.get("results") or "",
+                    }
                 st.success(
                     "작성 탭으로 전달했습니다. 「연구노트 작성 및 문서 생성」 탭을 열어 주세요."
                 )

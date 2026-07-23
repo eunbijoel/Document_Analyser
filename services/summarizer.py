@@ -22,6 +22,62 @@ RESEARCH_NOTE_SECTIONS = """
 전체 20줄 내외, 마크다운(###, **) 없이 일반 문장과 · 불릿만 사용.
 """
 
+RESEARCH_NOTE_FIELD_PROMPT = """
+문서 내용을 바탕으로 연구노트 양식에 넣을 초안을 작성하세요.
+아래 세 항목만, 반드시 이 형식으로 출력하세요. 마크다운(#, **)은 쓰지 마세요.
+원문에 없는 내용은 만들지 말고, 없으면 「확인 필요」라고 쓰세요.
+
+주제 제안:
+(한 줄 주제)
+
+내용:
+(주요 작업·분석 내용, 불릿 가능, 15줄 이내)
+
+연구 결과:
+(결과·성과·확인 사항, 불릿 가능, 8줄 이내)
+"""
+
+
+def parse_research_note_fields(text: str) -> dict[str, str]:
+    """LLM 응답에서 주제/내용/연구결과 추출."""
+    raw = (text or "").replace("\r\n", "\n").strip()
+    out = {"topic": "", "content": "", "results": ""}
+    if not raw:
+        return out
+
+    patterns = {
+        "topic": r"주제\s*제안\s*:?",
+        "content": r"내\s*용\s*:?",
+        "results": r"연구\s*결과\s*:?",
+    }
+    # 섹션 시작 위치 찾기
+    hits: list[tuple[int, str, int]] = []
+    for key, pat in patterns.items():
+        m = re.search(pat, raw, flags=re.IGNORECASE)
+        if m:
+            hits.append((m.start(), key, m.end()))
+    if not hits:
+        out["content"] = raw
+        return out
+
+    hits.sort(key=lambda x: x[0])
+    for i, (_start, key, end) in enumerate(hits):
+        stop = hits[i + 1][0] if i + 1 < len(hits) else len(raw)
+        body = raw[end:stop].strip()
+        # 앞뒤 빈 줄·불필요한 머리글 정리
+        body = re.sub(r"^\s*[-·*]\s*", "", body, count=1)
+        out[key] = body.strip()
+    return out
+
+
+def format_research_note_fields(fields: dict[str, str]) -> str:
+    """파싱된 필드를 요약문 영역에 보여줄 텍스트로."""
+    return (
+        f"주제 제안:\n{(fields.get('topic') or '').strip() or '확인 필요'}\n\n"
+        f"내용:\n{(fields.get('content') or '').strip() or '확인 필요'}\n\n"
+        f"연구 결과:\n{(fields.get('results') or '').strip() or '확인 필요'}"
+    )
+
 
 def _build_source_corpus(results: list[ParseResult], max_chars: int = 24000) -> str:
     parts: list[str] = []
