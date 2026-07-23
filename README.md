@@ -1,6 +1,6 @@
 # Document Analyser
 
-HWP/Docs/txt/PY/PDF/Excel 등 다양한 형식의 문서 통합 분석·요약**과 **연구노트 생성** 및 저장
+HWP/Docs/txt/PY/PDF/Excel 등 다양한 형식의 문서 통합 분석·요약과 **연구노트 생성** 및 저장
 <img width="1803" height="858" alt="image" src="https://github.com/user-attachments/assets/a2b277cb-c5c9-44d1-9783-21b7c062a141" />
 
 
