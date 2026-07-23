@@ -10,50 +10,54 @@ from services.document_parser import ParseResult
 
 
 RESEARCH_NOTE_SECTIONS = """
-다음 항목을 포함하되, 원문에 없는 내용은 만들지 마세요. 정보가 없으면 해당 줄을 생략하거나 「확인 필요」라고 쓰세요.
-
-1. 연구 또는 작업 목적
-2. 사용한 자료 및 파일
-3. 주요 작업 내용
-4. 분석 또는 구현 결과
-5. 확인된 문제점
-6. 향후 작업 계획
-
-전체 20줄 내외, 마크다운(###, **) 없이 일반 문장과 · 불릿만 사용.
-"""
-
-RESEARCH_NOTE_FIELD_PROMPT = """
-문서 내용을 바탕으로 연구노트 양식에 넣을 초안을 작성하세요.
-아래 세 항목만, 반드시 이 형식으로 출력하세요. 마크다운(#, **)은 쓰지 마세요.
+아래 형식을 그대로 지켜 작성하세요. 각 제목은 반드시 줄의 시작에 쓰고, 마크다운(#, **)은 쓰지 마세요.
 원문에 없는 내용은 만들지 말고, 없으면 「확인 필요」라고 쓰세요.
 
 주제 제안:
 (한 줄 주제)
 
+연구 또는 작업 목적
+(목적·배경, 2~4줄)
+
+사용한 자료 및 파일
+(파일·자료 목록)
+
 내용:
-(주요 작업·분석 내용, 불릿 가능, 15줄 이내)
+(가장 자세한 섹션. 문서에서 확인된 주요 작업·분석·절차·근거를 구체적으로 작성.
+불릿 8~15개 또는 동등한 분량. 짧게 한두 줄로 끝내지 말 것.)
 
 연구 결과:
-(결과·성과·확인 사항, 불릿 가능, 8줄 이내)
+(결과·성과·확인 사항, 불릿 가능)
+
+확인된 문제점
+(문제·한계)
+
+향후 작업 계획
+(다음 할 일)
 """
+
+# 줄 머리 제목만 매칭 — '문서 내용' 같은 문장 중간 단어와 혼동 방지
+_SECTION_SPECS: list[tuple[str, str]] = [
+    ("topic", r"(?m)^\s*주제\s*제안\s*:?\s*"),
+    ("purpose", r"(?m)^\s*연구\s*또는\s*작업\s*목적\s*:?\s*"),
+    ("materials", r"(?m)^\s*사용한\s*자료(?:\s*및\s*파일)?\s*:?\s*"),
+    ("content", r"(?m)^\s*(?:주요\s*)?내용\s*:?\s*"),
+    ("results", r"(?m)^\s*연구\s*결과\s*:?\s*"),
+    ("issues", r"(?m)^\s*확인된\s*문제점\s*:?\s*"),
+    ("plan", r"(?m)^\s*향후\s*작업\s*계획\s*:?\s*"),
+]
 
 
 def parse_research_note_fields(text: str) -> dict[str, str]:
-    """LLM 응답에서 주제/내용/연구결과 추출."""
+    """통합 요약에서 주제/내용/연구결과만 추출 (다른 섹션은 경계로만 사용)."""
     raw = (text or "").replace("\r\n", "\n").strip()
     out = {"topic": "", "content": "", "results": ""}
     if not raw:
         return out
 
-    patterns = {
-        "topic": r"주제\s*제안\s*:?",
-        "content": r"내\s*용\s*:?",
-        "results": r"연구\s*결과\s*:?",
-    }
-    # 섹션 시작 위치 찾기
     hits: list[tuple[int, str, int]] = []
-    for key, pat in patterns.items():
-        m = re.search(pat, raw, flags=re.IGNORECASE)
+    for key, pat in _SECTION_SPECS:
+        m = re.search(pat, raw)
         if m:
             hits.append((m.start(), key, m.end()))
     if not hits:
@@ -62,16 +66,17 @@ def parse_research_note_fields(text: str) -> dict[str, str]:
 
     hits.sort(key=lambda x: x[0])
     for i, (_start, key, end) in enumerate(hits):
+        if key not in out:
+            continue
         stop = hits[i + 1][0] if i + 1 < len(hits) else len(raw)
         body = raw[end:stop].strip()
-        # 앞뒤 빈 줄·불필요한 머리글 정리
         body = re.sub(r"^\s*[-·*]\s*", "", body, count=1)
         out[key] = body.strip()
     return out
 
 
 def format_research_note_fields(fields: dict[str, str]) -> str:
-    """파싱된 필드를 요약문 영역에 보여줄 텍스트로."""
+    """파싱된 핵심 필드를 짧게 보여줄 때 사용."""
     return (
         f"주제 제안:\n{(fields.get('topic') or '').strip() or '확인 필요'}\n\n"
         f"내용:\n{(fields.get('content') or '').strip() or '확인 필요'}\n\n"

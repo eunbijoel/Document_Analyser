@@ -95,13 +95,14 @@ def _apply_pending_convert():
     if pending is not None:
         text = str(pending)
         parsed = parse_research_note_fields(text)
-        # 주제/내용/연구결과 형식이면 해당 칸에, 아니면 내용 칸에만
-        if parsed.get("topic") or parsed.get("results") or (
-            parsed.get("content") and "주제 제안" in text
-        ):
+        structured = bool(
+            parsed.get("topic") or parsed.get("results") or ("주제 제안" in text and parsed.get("content") is not None)
+        )
+        if structured and ("주제 제안" in text or parsed.get("topic") or parsed.get("results")):
             if parsed.get("topic"):
                 st.session_state["rn_topic"] = parsed["topic"]
-            if parsed.get("content"):
+            # 내용이 파싱되면 반드시 채움 (빈 문자열이면 기존 값 유지)
+            if str(parsed.get("content") or "").strip():
                 st.session_state["rn_content"] = parsed["content"]
             if parsed.get("results"):
                 st.session_state["rn_results"] = parsed["results"]
@@ -111,16 +112,22 @@ def _apply_pending_convert():
         st.session_state["da_rn_form_seeded"] = True
         _save_rn_fields_to_persist()
 
-    # Tab 1 「연구노트 필드 초안」 첫 자동 채움
+    # Tab 1 통합 요약 → 폼 첫 채움 (또는 내용만 비어 있으면 보충)
     fields = st.session_state.pop("da_pending_rn_fields", None)
-    if isinstance(fields, dict) and not st.session_state.get("da_rn_form_seeded"):
+    if isinstance(fields, dict):
+        filled_any = False
         for key in ("rn_topic", "rn_content", "rn_results"):
-            val = fields.get(key)
-            if val is not None and str(val).strip():
-                st.session_state[key] = str(val).strip()
-        st.session_state["da_rn_converted"] = True
-        st.session_state["da_rn_form_seeded"] = True
-        _save_rn_fields_to_persist()
+            val = str(fields.get(key) or "").strip()
+            if not val:
+                continue
+            cur = str(st.session_state.get(key) or "").strip()
+            if not st.session_state.get("da_rn_form_seeded") or not cur:
+                st.session_state[key] = val
+                filled_any = True
+        if filled_any:
+            st.session_state["da_rn_converted"] = True
+            st.session_state["da_rn_form_seeded"] = True
+            _save_rn_fields_to_persist()
 
 
 def _research_note_rows() -> list[tuple[str, str]]:

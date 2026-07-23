@@ -77,6 +77,24 @@ div[data-testid="stStatusWidget"],
   z-index: 999992 !important;
   margin: 0.35rem 0 0 0.5rem !important;
 }
+
+/* Streamlit 1.57+ primary testid = stBaseButton-primary (예전 baseButton-primary는 무시됨) */
+button[data-testid="stBaseButton-primary"],
+.stButton > button[data-testid="stBaseButton-primary"],
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="baseButton-primary"] {
+  background-color: #1f4b99 !important;
+  background-image: none !important;
+  border-color: #1f4b99 !important;
+  color: #ffffff !important;
+}
+button[data-testid="stBaseButton-primary"]:hover,
+.stButton > button[data-testid="stBaseButton-primary"]:hover,
+.stButton > button[kind="primary"]:hover {
+  background-color: #183a78 !important;
+  border-color: #183a78 !important;
+  color: #ffffff !important;
+}
 </style>
 """,
     unsafe_allow_html=True,

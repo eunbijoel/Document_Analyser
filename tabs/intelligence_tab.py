@@ -8,10 +8,8 @@ from apps.intelligence.ui import get_last_assistant_answer, render_intelligence_
 from hwp_core.knowledge_mode import KnowledgeMode
 from services.session_bridge import save_analysis_to_writer
 from services.summarizer import (
-    RESEARCH_NOTE_FIELD_PROMPT,
     RESEARCH_NOTE_SECTIONS,
     extract_keywords,
-    format_research_note_fields,
     parse_research_note_fields,
     suggest_title,
 )
@@ -142,14 +140,15 @@ def _run_qa_summary(
 
 
 def _rn_form_has_core_fields() -> bool:
-    """주제/내용/연구결과가 이미 있으면 재생성 시 폼을 덮지 않음."""
+    """주제·내용·연구결과가 이미 채워졌으면 재생성 시 폼을 덮지 않음.
+    내용이 비어 있으면 미완료로 보고 다시 자동 채움을 허용."""
     store = st.session_state.get("da_rn_persist") or {}
+    content = str(store.get("rn_content") or st.session_state.get("rn_content") or "").strip()
     if store.get("da_rn_form_seeded") or st.session_state.get("da_rn_form_seeded"):
-        return True
-    for k in ("rn_topic", "rn_content", "rn_results"):
-        if str(store.get(k) or st.session_state.get(k) or "").strip():
-            return True
-    return False
+        return bool(content)
+    topic = str(store.get("rn_topic") or st.session_state.get("rn_topic") or "").strip()
+    results = str(store.get("rn_results") or st.session_state.get("rn_results") or "").strip()
+    return bool(topic and content and results)
 
 
 def _render_summary_section(
@@ -179,15 +178,15 @@ def _render_summary_section(
         )
     if st.session_state.pop("da_rn_fields_kept", False):
         st.info(
-            "필드 초안을 요약문에 넣었습니다. **작성 탭 폼은 유지**됩니다. "
-            "폼에 반영하려면 작성 탭에서 **「연구노트로 변환」**을 누르세요."
+            "통합 요약을 요약문에 넣었습니다. **작성 탭 폼(주제·내용·연구결과)은 유지**됩니다. "
+            "폼을 바꾸려면 작성 탭에서 **「연구노트로 변환」**을 누르세요."
         )
     if st.session_state.pop("da_rn_fields_seeded_ok", False):
         st.success(
-            "필드 초안을 만들었습니다. 작성 탭을 열면 **주제·내용·연구결과**에 처음 한 번 자동으로 채워집니다."
+            "통합 요약을 만들었습니다. 작성 탭을 열면 **주제·내용·연구결과**가 처음 한 번 자동으로 채워집니다."
         )
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         if st.button("문서 요약 (짧게)", use_container_width=True, key="da_btn_short"):
             with st.spinner("전체 문서 요약 생성…"):
@@ -207,52 +206,32 @@ def _render_summary_section(
             st.rerun()
     with col2:
         if st.button(
-            "연구노트용 통합 요약 (20줄)",
+            "연구노트용 통합 요약",
             type="primary",
             use_container_width=True,
             key="da_btn_research",
+            help="전체 템플릿 요약 + 주제/내용/연구결과는 작성 탭 폼에 반영(처음만 자동).",
         ):
-            with st.spinner("전체 문서 연구노트 요약 생성…"):
+            with st.spinner("연구노트용 통합 요약 생성…"):
                 text = _run_qa_summary(
                     documents,
                     _all_files_question(
                         documents,
-                        f"연구노트에 넣을 통합 요약을 작성하세요.\n\n{RESEARCH_NOTE_SECTIONS}",
+                        f"연구노트용 통합 요약을 작성하세요.\n\n{RESEARCH_NOTE_SECTIONS}",
                     ),
                     model=model,
                     ollama_url=ollama_url,
                     use_llm=use_llm,
                 )
+            # 전체 템플릿 → 요약문. 주제/내용/연구결과만 폼(처음만 자동).
             st.session_state.da_pending_research_summary = text
-            if not text:
-                st.warning("요약이 비어 있습니다. Ollama 연결을 확인하세요.")
-            st.rerun()
-    with col3:
-        if st.button(
-            "연구노트 필드 초안",
-            use_container_width=True,
-            key="da_btn_rn_fields",
-            help="주제 / 내용 / 연구결과 초안. 처음만 작성 탭 폼에 자동 반영됩니다.",
-        ):
-            with st.spinner("연구노트 필드(주제·내용·연구결과) 생성…"):
-                text = _run_qa_summary(
-                    documents,
-                    _all_files_question(documents, RESEARCH_NOTE_FIELD_PROMPT.strip()),
-                    model=model,
-                    ollama_url=ollama_url,
-                    use_llm=use_llm,
-                )
             fields = parse_research_note_fields(text)
-            formatted = format_research_note_fields(fields)
-            # 요약문 칸에는 항상 반영 (왼쪽 요약용). 폼은 처음만 자동 채움.
-            st.session_state.da_pending_research_summary = formatted
             if not text.strip():
-                st.warning("생성이 비어 있습니다. Ollama 연결을 확인하세요.")
+                st.warning("요약이 비어 있습니다. Ollama 연결을 확인하세요.")
             elif _rn_form_has_core_fields():
                 st.session_state.pop("da_pending_rn_fields", None)
                 st.session_state.da_rn_fields_kept = True
             else:
-                # 아직 폼이 비어 있으면 첫 자동 채움용으로 예약 (재생성해도 아직 미적용이면 갱신)
                 st.session_state.da_pending_rn_fields = {
                     "rn_topic": fields.get("topic") or "",
                     "rn_content": fields.get("content") or "",
@@ -270,7 +249,7 @@ def _render_summary_section(
         "수정 가능",
         height=320,
         key="da_research_summary_edit",
-        placeholder="「연구노트용 통합 요약」 또는 「연구노트 필드 초안」으로 생성하거나 직접 입력하세요.",
+        placeholder="「연구노트용 통합 요약」으로 생성하거나 직접 입력하세요.",
         label_visibility="collapsed",
     )
 
@@ -292,10 +271,9 @@ def _render_summary_section(
                 )
                 st.session_state.da_summary_text = edited.strip()
                 st.session_state.da_summary_ready = True
-                # 왼쪽 요약문만 갱신. 오른쪽 폼은 덮지 않음.
                 st.success(
                     "작성 탭 **요약문**으로 전달했습니다. "
-                    "폼에 반영하려면 작성 탭에서 **「연구노트로 변환」**을 누르세요."
+                    "(주제·내용·연구결과는 첫 생성 시 자동, 이후에는 **「연구노트로 변환」**)"
                 )
     with btn_col2:
         last = _get_last_qa_answer(documents)
