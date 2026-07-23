@@ -9,7 +9,6 @@ from hwp_core.knowledge_mode import KnowledgeMode
 from services.session_bridge import save_analysis_to_writer
 from services.summarizer import (
     RESEARCH_NOTE_SECTIONS,
-    extract_keywords,
     parse_research_note_fields,
     suggest_title,
 )

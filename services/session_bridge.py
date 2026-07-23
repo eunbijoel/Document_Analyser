@@ -154,21 +154,6 @@ def save_analysis_to_writer(
     session_state[RESEARCH_NOTE_FIELDS] = fields.to_dict()
 
 
-def load_from_analyzer(session_state: Any) -> ResearchNoteFields | None:
-    if not session_state.get(ANALYSIS_COMPLETED):
-        return None
-    raw = session_state.get(RESEARCH_NOTE_FIELDS)
-    if raw:
-        return ResearchNoteFields.from_dict(raw)
-    summary = session_state.get(ANALYSIS_SUMMARY) or session_state.get(RESEARCH_NOTE_CONTENT) or ""
-    return parse_summary_into_fields(
-        summary,
-        filenames=session_state.get(UPLOADED_FILE_NAMES) or [],
-        title_hint=session_state.get(RESEARCH_NOTE_TITLE) or "연구노트",
-        keywords=session_state.get(ANALYSIS_KEYWORDS) or [],
-    )
-
-
 def has_analysis_data(session_state: Any) -> bool:
     return bool(session_state.get(ANALYSIS_COMPLETED) and (
         session_state.get(ANALYSIS_SUMMARY) or session_state.get(RESEARCH_NOTE_CONTENT)
