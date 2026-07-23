@@ -40,6 +40,34 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 inject_theme()
+# brand 테마가 툴바를 숨기면서 사이드바 접기/펼치기 컨트롤도 안 보이는 경우 보정
+st.markdown(
+    """
+<style>
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stExpandSidebarButton"] {
+  visibility: visible !important;
+  display: inline-flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stExpandSidebarButton"] {
+  cursor: pointer !important;
+}
+/* 접힌 뒤 왼쪽 상단 펼치기 버튼이 가려지지 않게 */
+[data-testid="stHeader"] {
+  z-index: 999991 !important;
+}
+[data-testid="stExpandSidebarButton"] {
+  position: relative;
+  z-index: 999992 !important;
+  margin: 0.35rem 0 0 0.35rem;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("Document Analyser")
 st.caption("탭 1 = Product A · 탭 2 = 요약 → HWPX (단계별 구현)")
