@@ -2,7 +2,6 @@
 
 HWP/Docs/txt/PY/PDF/Excel 등 다양한 형식의 문서 통합 분석·요약**과 **연구노트 생성** 및 저장
 <img width="1803" height="858" alt="image" src="https://github.com/user-attachments/assets/a2b277cb-c5c9-44d1-9783-21b7c062a141" />
-<img width="1835" height="883" alt="image" src="https://github.com/user-attachments/assets/5caf679e-c12f-4b85-80b3-288da9a24602" />
 
 
 ## 설치 및 실행
