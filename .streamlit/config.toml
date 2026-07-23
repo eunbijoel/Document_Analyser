@@ -1,5 +1,15 @@
 [theme]
+# light/dark 전환 가능하도록 base만 두고, 색은 각각 정의
+base = "light"
+
+[theme.light]
 primaryColor = "#1f4b99"
 backgroundColor = "#e8eaef"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#1a1a1a"
+
+[theme.dark]
+primaryColor = "#6b9eff"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#fafafa"
