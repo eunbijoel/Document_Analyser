@@ -9,6 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from services.session_bridge import has_analysis_data
+from services.summarizer import parse_research_note_fields
 from services.text_hwpx_builder import (
     build_docx_from_text,
     build_hwp_from_text,
@@ -51,6 +52,8 @@ def _save_rn_fields_to_persist():
             store[k] = st.session_state[k]
     if "da_rn_converted" in st.session_state:
         store["da_rn_converted"] = st.session_state["da_rn_converted"]
+    if "da_rn_form_seeded" in st.session_state:
+        store["da_rn_form_seeded"] = st.session_state["da_rn_form_seeded"]
 
 
 def _restore_rn_fields_from_persist():
@@ -60,6 +63,8 @@ def _restore_rn_fields_from_persist():
             st.session_state[k] = store[k]
     if "da_rn_converted" in store and "da_rn_converted" not in st.session_state:
         st.session_state["da_rn_converted"] = store["da_rn_converted"]
+    if "da_rn_form_seeded" in store and "da_rn_form_seeded" not in st.session_state:
+        st.session_state["da_rn_form_seeded"] = store["da_rn_form_seeded"]
 
 
 def _on_rn_field_change():
@@ -88,18 +93,33 @@ def _apply_pending_convert():
     """위젯 생성 전에 변환 결과 반영."""
     pending = st.session_state.pop("da_rn_pending_content", None)
     if pending is not None:
-        st.session_state["rn_content"] = pending
+        text = str(pending)
+        parsed = parse_research_note_fields(text)
+        # 주제/내용/연구결과 형식이면 해당 칸에, 아니면 내용 칸에만
+        if parsed.get("topic") or parsed.get("results") or (
+            parsed.get("content") and "주제 제안" in text
+        ):
+            if parsed.get("topic"):
+                st.session_state["rn_topic"] = parsed["topic"]
+            if parsed.get("content"):
+                st.session_state["rn_content"] = parsed["content"]
+            if parsed.get("results"):
+                st.session_state["rn_results"] = parsed["results"]
+        else:
+            st.session_state["rn_content"] = text
         st.session_state["da_rn_converted"] = True
+        st.session_state["da_rn_form_seeded"] = True
         _save_rn_fields_to_persist()
 
-    # Tab 1 「연구노트 필드 초안」에서 넘어온 주제/내용/연구결과
+    # Tab 1 「연구노트 필드 초안」 첫 자동 채움
     fields = st.session_state.pop("da_pending_rn_fields", None)
-    if isinstance(fields, dict):
+    if isinstance(fields, dict) and not st.session_state.get("da_rn_form_seeded"):
         for key in ("rn_topic", "rn_content", "rn_results"):
             val = fields.get(key)
             if val is not None and str(val).strip():
                 st.session_state[key] = str(val).strip()
         st.session_state["da_rn_converted"] = True
+        st.session_state["da_rn_form_seeded"] = True
         _save_rn_fields_to_persist()
 
 
@@ -204,6 +224,7 @@ def render_writer_tab():
         if st.button("연구노트로\n변환", type="primary", use_container_width=True, key="da_rn_convert"):
             st.session_state.da_rn_pending_content = st.session_state.get("da_writer_text") or ""
             st.rerun()
+        st.caption("요약 → 폼")
         if st.session_state.get("da_rn_converted"):
             st.caption("변환됨 →")
 

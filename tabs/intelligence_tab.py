@@ -141,6 +141,17 @@ def _run_qa_summary(
     return (ans.get("answer") or "").strip()
 
 
+def _rn_form_has_core_fields() -> bool:
+    """주제/내용/연구결과가 이미 있으면 재생성 시 폼을 덮지 않음."""
+    store = st.session_state.get("da_rn_persist") or {}
+    if store.get("da_rn_form_seeded") or st.session_state.get("da_rn_form_seeded"):
+        return True
+    for k in ("rn_topic", "rn_content", "rn_results"):
+        if str(store.get(k) or st.session_state.get(k) or "").strip():
+            return True
+    return False
+
+
 def _render_summary_section(
     *,
     model: str,
@@ -165,6 +176,15 @@ def _render_summary_section(
     if st.session_state.pop("da_transfer_ok", False):
         st.success(
             "작성 탭으로 전달했습니다. 「연구노트 작성 및 문서 생성」 탭을 열어 주세요."
+        )
+    if st.session_state.pop("da_rn_fields_kept", False):
+        st.info(
+            "필드 초안을 요약문에 넣었습니다. **작성 탭 폼은 유지**됩니다. "
+            "폼에 반영하려면 작성 탭에서 **「연구노트로 변환」**을 누르세요."
+        )
+    if st.session_state.pop("da_rn_fields_seeded_ok", False):
+        st.success(
+            "필드 초안을 만들었습니다. 작성 탭을 열면 **주제·내용·연구결과**에 처음 한 번 자동으로 채워집니다."
         )
 
     col1, col2, col3 = st.columns(3)
@@ -212,7 +232,7 @@ def _render_summary_section(
             "연구노트 필드 초안",
             use_container_width=True,
             key="da_btn_rn_fields",
-            help="주제 / 내용 / 연구결과를 연구노트 양식에 맞게 생성합니다.",
+            help="주제 / 내용 / 연구결과 초안. 처음만 작성 탭 폼에 자동 반영됩니다.",
         ):
             with st.spinner("연구노트 필드(주제·내용·연구결과) 생성…"):
                 text = _run_qa_summary(
@@ -224,15 +244,21 @@ def _render_summary_section(
                 )
             fields = parse_research_note_fields(text)
             formatted = format_research_note_fields(fields)
+            # 요약문 칸에는 항상 반영 (왼쪽 요약용). 폼은 처음만 자동 채움.
             st.session_state.da_pending_research_summary = formatted
-            # Tab 2 폼에 바로 넣을 초안
-            st.session_state.da_pending_rn_fields = {
-                "rn_topic": fields.get("topic") or "",
-                "rn_content": fields.get("content") or "",
-                "rn_results": fields.get("results") or "",
-            }
             if not text.strip():
                 st.warning("생성이 비어 있습니다. Ollama 연결을 확인하세요.")
+            elif _rn_form_has_core_fields():
+                st.session_state.pop("da_pending_rn_fields", None)
+                st.session_state.da_rn_fields_kept = True
+            else:
+                # 아직 폼이 비어 있으면 첫 자동 채움용으로 예약 (재생성해도 아직 미적용이면 갱신)
+                st.session_state.da_pending_rn_fields = {
+                    "rn_topic": fields.get("topic") or "",
+                    "rn_content": fields.get("content") or "",
+                    "rn_results": fields.get("results") or "",
+                }
+                st.session_state.da_rn_fields_seeded_ok = True
             st.rerun()
 
     if st.session_state.get("da_short_summary"):
@@ -266,16 +292,10 @@ def _render_summary_section(
                 )
                 st.session_state.da_summary_text = edited.strip()
                 st.session_state.da_summary_ready = True
-                # 주제/내용/연구결과 형식이면 Tab 2 폼에도 반영
-                parsed = parse_research_note_fields(edited)
-                if parsed.get("topic") or parsed.get("content") or parsed.get("results"):
-                    st.session_state.da_pending_rn_fields = {
-                        "rn_topic": parsed.get("topic") or "",
-                        "rn_content": parsed.get("content") or "",
-                        "rn_results": parsed.get("results") or "",
-                    }
+                # 왼쪽 요약문만 갱신. 오른쪽 폼은 덮지 않음.
                 st.success(
-                    "작성 탭으로 전달했습니다. 「연구노트 작성 및 문서 생성」 탭을 열어 주세요."
+                    "작성 탭 **요약문**으로 전달했습니다. "
+                    "폼에 반영하려면 작성 탭에서 **「연구노트로 변환」**을 누르세요."
                 )
     with btn_col2:
         last = _get_last_qa_answer(documents)
